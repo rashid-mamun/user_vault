@@ -3,7 +3,6 @@ const db = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const registerSchemaValidator = require('../validator/register.validator');
-require('dotenv').config();
 
 exports.register = async (req, res) => {
   const hashedPassword = await bcrypt.hash(req.body.password, 10);
@@ -21,13 +20,15 @@ exports.register = async (req, res) => {
   };
   const t = await db.sequelize.transaction();
   try {
-    const valid = await registerSchemaValidator.validateAsync(req.body);
+    await registerSchemaValidator.validateAsync(req.body);
 
     const profile = await db.Profile.create(profileData, { transaction: t });
     let auth;
     if (profile && profile.id) {
       authData.profileId = profile.id;
       auth = await db.Auth.create(authData, { transaction: t });
+    } else {
+      throw new Error('Profile creation failed');
     }
     await t.commit();
     return res.status(201).json({
@@ -35,10 +36,11 @@ exports.register = async (req, res) => {
       response: { profile, auth },
     });
   } catch (error) {
-    console.log(error);
+    console.error('Registration error:', error);
     await t.rollback();
-    return res.status(500).json({
-      message: 'Unable to create a record!',
+    return res.status(400).json({
+      message: 'Failed to create record',
+      error: error.message,
     });
   }
 };
@@ -51,45 +53,35 @@ exports.login = async (req, res) => {
         email: req.body.email,
       },
     });
-    // console.log(user.dataValues);
-    if (user) {
-      const isValidPassword = await bcrypt.compare(
-        req.body.password,
-        user.dataValues.password
-      );
-
-      if (isValidPassword) {
-        /* 
-                generate token
-            */
-        const token = jwt.sign(
-          {
-            email: user.dataValues.email,
-            userId: user.dataValues.id,
-          },
-          process.env.JWT_SECRET,
-          {
-            expiresIn: '1h',
-          }
-        );
-
-        res.status(200).json({
-          access_token: token,
-          message: 'login  successful!',
-        });
-      } else {
-        res.status(401).json({
-          error: 'Authetication failed!',
-        });
-      }
-    } else {
-      res.status(401).json({
-        error: 'Authetication failed!',
+    if (!user) {
+      return res.status(401).json({
+        error: 'Authentication failed: User not found',
       });
     }
+    const isValidPassword = await bcrypt.compare(req.body.password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({
+        error: 'Authentication failed: Invalid password',
+      });
+    }
+    const token = jwt.sign(
+      {
+        email: user.email,
+        userId: user.id,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '1h',
+      }
+    );
+    return res.status(200).json({
+      access_token: token,
+      message: 'Login successful!',
+    });
   } catch (err) {
-    res.status(401).json({
-      error: 'Authetication failed!' + err.message,
+    console.error('Login error:', err);
+    return res.status(500).json({
+      error: 'Internal server error: ' + err.message,
     });
   }
 };

@@ -1,6 +1,6 @@
 const dbConfig = require('./database');
 const Sequelize = require('sequelize');
-require('dotenv').config();
+
 const connectionPoolOptions = {
   max: 300,
   idle: 30000,

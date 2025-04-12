@@ -17,16 +17,14 @@ const auth = (sequelize, DataTypes) => {
       timestamps: false,
     }
   );
-  {
-    Auth.associate = (models) => {
-      Auth.belongsTo(models.Profile, {
-        foreignKey: 'profileId',
-        as: 'profile',
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-      });
-    };
-  }
+  Auth.associate = (models) => {
+    Auth.belongsTo(models.Profile, {
+      foreignKey: 'profileId',
+      as: 'profile',
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+    });
+  };
 
   return Auth;
 };
